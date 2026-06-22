@@ -1,33 +1,23 @@
-import React, { useState, useEffect, useMemo, createContext, useContext } from "react";
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  BarChart, Bar, Legend
-} from "recharts";
+import React, { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import Papa from "papaparse";
 import {
   Plus, Upload, TrendingUp, Wallet, Target, Trash2, Award, Flame, Sparkles,
   Check, X, Loader2, Search, Download, Pencil, PiggyBank, Landmark,
   AlertTriangle, RefreshCw
 } from "lucide-react";
+import { CURRENCIES, makeFmt, FmtCtx, useFmt } from "./format.js";
 
-// ---------- Multi-moneda ----------
-const CURRENCIES = {
-  MXN: { locale: "es-MX", code: "MXN", label: "Peso MX ($)" },
-  USD: { locale: "en-US", code: "USD", label: "Dólar (US$)" },
-  EUR: { locale: "es-ES", code: "EUR", label: "Euro (€)" },
-  COP: { locale: "es-CO", code: "COP", label: "Peso COL ($)" },
-  ARS: { locale: "es-AR", code: "ARS", label: "Peso ARG ($)" },
-  CLP: { locale: "es-CL", code: "CLP", label: "Peso CL ($)" },
-};
-const makeFmt = (cur) => (n) =>
-  new Intl.NumberFormat((CURRENCIES[cur] || CURRENCIES.MXN).locale, {
-    style: "currency",
-    currency: (CURRENCIES[cur] || CURRENCIES.MXN).code,
-    maximumFractionDigits: 0,
-  }).format(n || 0);
+// Gráficas (recharts) cargadas bajo demanda para aligerar el bundle inicial.
+const MonthlyChart = lazy(() => import("./charts/MonthlyChart.jsx"));
+const ProjectionChart = lazy(() => import("./charts/ProjectionChart.jsx"));
 
-const FmtCtx = createContext(makeFmt("MXN"));
-const useFmt = () => useContext(FmtCtx);
+function ChartFallback({ height }) {
+  return (
+    <div style={{ height, display: "flex", alignItems: "center", justifyContent: "center", color: "#5a6372", fontSize: 12 }}>
+      <Loader2 size={16} className="spin" /> <span style={{ marginLeft: 8 }}>Cargando gráfica…</span>
+    </div>
+  );
+}
 
 // ---------- Persistencia (window.storage con fallback a localStorage) ----------
 const store = {
@@ -571,17 +561,9 @@ function Dashboard({ totals, monthly, entries, avgMonthlySave, fixedItems, fixed
       {monthly.length > 0 ? (
         <div style={{ background: "#161d29", border: "1px solid #29323f", borderRadius: 12, padding: 16, marginBottom: 18 }}>
           <div className="sg" style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>Ingresos vs gastos por mes</div>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={monthly}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#29323f" />
-              <XAxis dataKey="month" stroke="#8a93a3" fontSize={11} />
-              <YAxis stroke="#8a93a3" fontSize={11} tickFormatter={(v) => `${Math.round(v / 1000)}k`} />
-              <Tooltip contentStyle={{ background: "#1c2433", border: "1px solid #29323f", borderRadius: 8 }} formatter={(v) => fmt(v)} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="income" name="Ingresos" fill="#2ecc71" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="expense" name="Gastos" fill="#e25c5c" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <Suspense fallback={<ChartFallback height={220} />}>
+            <MonthlyChart data={monthly} />
+          </Suspense>
         </div>
       ) : (
         <EmptyState text="Registra tu primer movimiento en la pestaña 'Movimientos' para ver tu tablero cobrar vida." />
@@ -1050,16 +1032,9 @@ function Proyeccion({ proj, setProj, avgMonthlySave, projectionData, monthsToTar
 
       <div style={{ background: "#161d29", border: "1px solid #29323f", borderRadius: 12, padding: 16 }}>
         <div className="sg" style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>Tu ruta hacia la libertad</div>
-        <ResponsiveContainer width="100%" height={260}>
-          <LineChart data={projectionData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#29323f" />
-            <XAxis dataKey="month" stroke="#8a93a3" fontSize={11} label={{ value: "meses", position: "insideBottom", offset: -3, fill: "#5a6372", fontSize: 11 }} />
-            <YAxis stroke="#8a93a3" fontSize={11} tickFormatter={(v) => `${Math.round(v / 1000)}k`} />
-            <Tooltip contentStyle={{ background: "#1c2433", border: "1px solid #29323f", borderRadius: 8 }} formatter={(v) => fmt(v)} labelFormatter={(l) => `Mes ${l}`} />
-            <Line type="monotone" dataKey="balance" stroke="#d4af37" strokeWidth={2.5} dot={false} />
-            {proj.target && <Line type="monotone" dataKey={() => parseFloat(proj.target)} stroke="#e25c5c" strokeDasharray="4 4" dot={false} name="Meta" />}
-          </LineChart>
-        </ResponsiveContainer>
+        <Suspense fallback={<ChartFallback height={260} />}>
+          <ProjectionChart data={projectionData} target={parseFloat(proj.target) || 0} />
+        </Suspense>
       </div>
     </div>
   );
