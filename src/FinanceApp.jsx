@@ -208,21 +208,16 @@ export default function FinanceApp() {
     setAiError(null);
     setAiPreview(null);
     try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
+      // Llamada al proxy del servidor: la API key nunca vive en el cliente.
+      const response = await fetch("/api/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 1000,
-          system: "Extraes ingresos y gastos FIJOS (recurrentes mensuales) de una descripción en español. Responde SOLO con un arreglo JSON, sin texto adicional, sin markdown, sin backticks. Cada elemento: {\"type\":\"income\"|\"expense\",\"category\":string,\"amount\":number,\"note\":string}. Usa montos mensuales (si dan algo semanal o quincenal, conviértelo a mensual, dividiendo o multiplicando segun corresponda). Para 'category' usa una etiqueta corta y clara en español basada en lo que describe (ej. 'Salario', 'Renta', 'Comida', 'Deuda', 'Servicios', 'Transporte'). Si no hay info suficiente para un monto, no inventes esa entrada.",
-          messages: [{ role: "user", content: aiText }],
-        }),
+        body: JSON.stringify({ text: aiText }),
       });
-      const data = await response.json();
-      const text = (data.content || []).map(b => b.text || "").join("\n");
-      const clean = text.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(clean);
-      if (!Array.isArray(parsed) || parsed.length === 0) {
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Error del servidor");
+      const parsed = Array.isArray(data.items) ? data.items : [];
+      if (parsed.length === 0) {
         setAiError("No encontré montos claros en tu descripción. Intenta ser más específico.");
       } else {
         setAiPreview(parsed.map(p => ({ ...p, id: crypto.randomUUID(), include: true, amount: Number(p.amount) || 0 })));

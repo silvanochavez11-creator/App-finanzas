@@ -26,7 +26,11 @@ npm run preview  # sirve el build de producción
 
 ```
 index.html
-vite.config.js
+vite.config.js          # build + proxy /api/extract en dev
+api/
+  extract.js            # función serverless (Vercel) del Asistente IA
+server/
+  anthropic.js          # lógica compartida del proxy (la API key vive aquí)
 src/
   main.jsx              # punto de entrada
   FinanceApp.jsx        # componente principal y lógica
@@ -35,6 +39,20 @@ src/
     MonthlyChart.jsx    # gráfica de barras (lazy)
     ProjectionChart.jsx # gráfica de línea (lazy)
 ```
+
+## Asistente IA (backend seguro)
+
+La key de Anthropic **nunca** llega al navegador. El cliente llama a `POST /api/extract`
+con `{ text }` y el servidor reenvía la petición a la API usando `ANTHROPIC_API_KEY`.
+
+```bash
+cp .env.example .env     # y pon tu ANTHROPIC_API_KEY
+npm run dev              # /api/extract se sirve vía middleware de Vite
+```
+
+En producción (Vercel) la carpeta `api/` se despliega como función serverless;
+define `ANTHROPIC_API_KEY` en las variables de entorno del proyecto. La misma lógica
+(`server/anthropic.js`) corre en dev y en producción.
 
 ## Optimización
 
@@ -49,7 +67,3 @@ Usa `window.storage` cuando está disponible y cae a `localStorage` en cualquier
 ## Dependencias
 
 `react`, `recharts`, `papaparse`, `lucide-react`.
-
-## Nota sobre el Asistente IA
-
-La llamada a la API de Anthropic se hace desde el cliente. En producción debe pasar por un backend/proxy que guarde la API key de forma segura (nunca exponerla en el frontend).
