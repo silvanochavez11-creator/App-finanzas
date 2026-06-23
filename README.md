@@ -54,6 +54,37 @@ En producción (Vercel) la carpeta `api/` se despliega como función serverless;
 define `ANTHROPIC_API_KEY` en las variables de entorno del proyecto. La misma lógica
 (`server/anthropic.js`) corre en dev y en producción.
 
+## Despliegue en Hostinger (plan Business — apps Node.js)
+
+El plan Business incluye apps Node.js, así que el frontend y el proxy de la IA
+corren juntos en `server.js`.
+
+1. Sube el repositorio a Hostinger (vía Git en hPanel, o subiendo los archivos).
+2. En hPanel → **Avanzado → Node.js** (o *Setup Node.js App*), crea la app:
+   - **Startup file:** `server.js`
+   - **Application root:** la carpeta del proyecto
+   - **Node version:** 18 o superior
+3. En la misma pantalla agrega la variable de entorno:
+   - `ANTHROPIC_API_KEY` = tu llave de Anthropic
+4. Instala dependencias y compila el frontend (botón *Run NPM Install* y una
+   terminal/SSH para `npm run build`, o como tarea de build):
+   ```bash
+   npm install
+   npm run build      # genera dist/
+   ```
+5. Inicia/Reinicia la app. Hostinger ejecuta `npm start` → `node server.js`,
+   que sirve `dist/` y `POST /api/extract` en el puerto que asigna la plataforma.
+
+> Cada vez que cambies el código: `npm run build` y reinicia la app en hPanel.
+
+## Scripts
+
+```bash
+npm run dev      # desarrollo con proxy /api/extract (Vite)
+npm run build    # compila el frontend a dist/
+npm start        # servidor de producción (Express: dist/ + /api/extract)
+```
+
 ## Optimización
 
 - Build con **Vite** (minificado con esbuild, `target: es2020`).
