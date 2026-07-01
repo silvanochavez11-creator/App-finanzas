@@ -207,6 +207,12 @@ export default function FinanceApp() {
     setAiLoading(true);
     setAiError(null);
     setAiPreview(null);
+    // En modo standalone (abriendo el .html directo) no hay servidor para el proxy.
+    if (typeof window !== "undefined" && window.location.protocol === "file:") {
+      setAiError("El Asistente IA necesita el servidor. Funciona con 'npm run dev' o ya desplegada en Hostinger. El resto de la app funciona aquí sin problema.");
+      setAiLoading(false);
+      return;
+    }
     try {
       // Llamada al proxy del servidor: la API key nunca vive en el cliente.
       const response = await fetch("/api/extract", {
