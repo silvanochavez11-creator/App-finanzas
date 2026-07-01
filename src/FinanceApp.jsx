@@ -6,6 +6,7 @@ import {
   AlertTriangle, RefreshCw
 } from "lucide-react";
 import { CURRENCIES, makeFmt, FmtCtx, useFmt } from "./format.js";
+import ErrorBoundary from "./ErrorBoundary.jsx";
 
 // Gráficas (recharts) cargadas bajo demanda para aligerar el bundle inicial.
 const MonthlyChart = lazy(() => import("./charts/MonthlyChart.jsx"));
@@ -66,6 +67,12 @@ function getLevel(netWorth) {
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const monthOf = (d) => (d || todayStr()).slice(0, 7);
+
+// UUID con fallback (crypto.randomUUID no siempre existe en file:// / navegadores viejos).
+const uid = () =>
+  (typeof crypto !== "undefined" && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : "id-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
 
 export default function FinanceApp() {
   const [tab, setTab] = useState("dashboard");
@@ -226,7 +233,7 @@ export default function FinanceApp() {
       if (parsed.length === 0) {
         setAiError("No encontré montos claros en tu descripción. Intenta ser más específico.");
       } else {
-        setAiPreview(parsed.map(p => ({ ...p, id: crypto.randomUUID(), include: true, amount: Number(p.amount) || 0 })));
+        setAiPreview(parsed.map(p => ({ ...p, id: uid(), include: true, amount: Number(p.amount) || 0 })));
       }
     } catch (e) {
       setAiError("No pude procesar eso. Intenta de nuevo o sé más específico con los montos.");
@@ -252,7 +259,7 @@ export default function FinanceApp() {
     if (lastApplied === curMonth) return showToast("Ya aplicaste los fijos de este mes");
     const date = `${curMonth}-01`;
     const newEntries = fixedItems.map(f => ({
-      id: crypto.randomUUID(),
+      id: uid(),
       type: f.type,
       category: f.category,
       amount: f.amount,
@@ -277,7 +284,7 @@ export default function FinanceApp() {
       setEditingId(null);
       showToast("Movimiento actualizado");
     } else {
-      const entry = { id: crypto.randomUUID(), ...form, amount };
+      const entry = { id: uid(), ...form, amount };
       setEntries(prev => [entry, ...prev]);
       showToast(form.type === "income" ? "+XP: ingreso registrado" : "Gasto registrado");
     }
@@ -301,7 +308,7 @@ export default function FinanceApp() {
   };
 
   // ---------- Cuentas ----------
-  const addAccount = (acc) => setAccounts(prev => [...prev, { id: crypto.randomUUID(), ...acc }]);
+  const addAccount = (acc) => setAccounts(prev => [...prev, { id: uid(), ...acc }]);
   const deleteAccount = (id) => setAccounts(prev => prev.filter(a => a.id !== id));
 
   // ---------- Presupuestos ----------
@@ -349,7 +356,7 @@ export default function FinanceApp() {
           else if (typeRaw.includes("gasto") || typeRaw.includes("expense")) type = "expense";
           else type = amount < 0 ? "expense" : "income";
           parsed.push({
-            id: crypto.randomUUID(),
+            id: uid(),
             type,
             category: r.category || r.categoria || (type === "income" ? "Otro ingreso" : "Otro gasto"),
             amount: Math.abs(amount),
@@ -462,6 +469,7 @@ export default function FinanceApp() {
       </div>
 
       <div style={{ maxWidth: 920, margin: "0 auto", padding: "20px" }}>
+        <ErrorBoundary key={tab}>
         {tab === "dashboard" && (
           <Dashboard totals={totals} monthly={monthly} entries={entries} avgMonthlySave={avgMonthlySave}
             fixedItems={fixedItems} fixedNet={fixedNet} wealth={wealth} netWorth={netWorth} hasAccounts={accounts.length > 0}
@@ -494,6 +502,7 @@ export default function FinanceApp() {
           <Proyeccion proj={proj} setProj={setProj} avgMonthlySave={avgMonthlySave} projectionData={projectionData}
             monthsToTarget={monthsToTarget} finalBalance={finalBalance} netActual={netWorth} fixedItems={fixedItems} fixedNet={fixedNet} />
         )}
+        </ErrorBoundary>
       </div>
 
       {toast && (
