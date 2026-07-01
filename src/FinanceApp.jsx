@@ -253,6 +253,11 @@ export default function FinanceApp() {
 
   const deleteFixedItem = (id) => setFixedItems(prev => prev.filter(f => f.id !== id));
 
+  const addFixedItem = (item) => {
+    setFixedItems(prev => [...prev, { id: uid(), ...item }]);
+    showToast(item.type === "income" ? "Ingreso fijo agregado" : "Gasto fijo agregado");
+  };
+
   // ---------- Aplicar conceptos fijos del mes ----------
   const applyFixedThisMonth = () => {
     if (fixedItems.length === 0) return showToast("No tienes conceptos fijos");
@@ -480,7 +485,7 @@ export default function FinanceApp() {
         {tab === "asistente" && (
           <Asistente aiText={aiText} setAiText={setAiText} askAI={askAI} aiLoading={aiLoading}
             aiPreview={aiPreview} setAiPreview={setAiPreview} aiError={aiError} confirmAiPreview={confirmAiPreview}
-            fixedItems={fixedItems} deleteFixedItem={deleteFixedItem} fixedNet={fixedNet}
+            fixedItems={fixedItems} deleteFixedItem={deleteFixedItem} fixedNet={fixedNet} addFixedItem={addFixedItem}
             applyFixedThisMonth={applyFixedThisMonth} needsApply={needsApply} />
         )}
 
@@ -891,8 +896,18 @@ function AccountRow({ a, onDelete }) {
   );
 }
 
-function Asistente({ aiText, setAiText, askAI, aiLoading, aiPreview, setAiPreview, aiError, confirmAiPreview, fixedItems, deleteFixedItem, fixedNet, applyFixedThisMonth, needsApply }) {
+function Asistente({ aiText, setAiText, askAI, aiLoading, aiPreview, setAiPreview, aiError, confirmAiPreview, fixedItems, deleteFixedItem, fixedNet, addFixedItem, applyFixedThisMonth, needsApply }) {
   const fmt = useFmt();
+  const [manual, setManual] = useState({ type: "expense", category: CATS_EXPENSE[0], amount: "", note: "" });
+  const manualCats = manual.type === "income" ? CATS_INCOME : CATS_EXPENSE;
+
+  const submitManual = () => {
+    const amount = parseFloat(manual.amount);
+    if (!amount || amount <= 0) return;
+    addFixedItem({ type: manual.type, category: manual.category, amount, note: manual.note });
+    setManual(m => ({ ...m, amount: "", note: "" }));
+  };
+
   const toggleItem = (id) => {
     setAiPreview(prev => prev.map(p => p.id === id ? { ...p, include: !p.include } : p));
   };
@@ -954,6 +969,40 @@ function Asistente({ aiText, setAiText, askAI, aiLoading, aiPreview, setAiPrevie
           </div>
         </div>
       )}
+
+      <div style={{ background: "#161d29", border: "1px solid #29323f", borderRadius: 12, padding: 16, marginBottom: 18 }}>
+        <div className="sg" style={{ fontSize: 14, fontWeight: 700, marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
+          <Plus size={16} color="#d4af37" /> Agregar concepto fijo manual
+        </div>
+        <div style={{ fontSize: 12, color: "#8a93a3", marginBottom: 12 }}>
+          Registra tú mismo un ingreso o gasto fijo mensual, sin usar la IA.
+        </div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+          {["expense", "income"].map(t => (
+            <button key={t} onClick={() => setManual(m => ({ ...m, type: t, category: t === "income" ? CATS_INCOME[0] : CATS_EXPENSE[0] }))}
+              style={{
+                flex: 1, padding: "9px 0", borderRadius: 8, border: "1px solid #29323f",
+                background: manual.type === t ? (t === "income" ? "#2ecc7122" : "#e25c5c22") : "transparent",
+                color: manual.type === t ? (t === "income" ? "#2ecc71" : "#e25c5c") : "#8a93a3",
+                fontWeight: 700, fontSize: 13
+              }}>
+              {t === "income" ? "Ingreso fijo" : "Gasto fijo"}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+          <select value={manual.category} onChange={e => setManual(m => ({ ...m, category: e.target.value }))}>
+            {manualCats.map(c => <option key={c}>{c}</option>)}
+          </select>
+          <input type="number" placeholder="Monto mensual" value={manual.amount} onChange={e => setManual(m => ({ ...m, amount: e.target.value }))} />
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input type="text" placeholder="Nota (opcional)" value={manual.note} onChange={e => setManual(m => ({ ...m, note: e.target.value }))} style={{ flex: 1 }} />
+          <button onClick={submitManual} style={{ background: "#d4af37", color: "#0c1118", border: "none", borderRadius: 8, padding: "0 18px", fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
+            <Plus size={15} /> Agregar
+          </button>
+        </div>
+      </div>
 
       <div style={{ background: "#161d29", border: "1px solid #29323f", borderRadius: 12, padding: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
