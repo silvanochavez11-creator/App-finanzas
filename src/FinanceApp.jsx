@@ -74,6 +74,36 @@ const uid = () =>
     ? crypto.randomUUID()
     : "id-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
 
+// ---------- Agrupación por periodo (día / semana / quincena / mes) ----------
+const PERIODS = [
+  { id: "day", label: "Día" },
+  { id: "week", label: "Semana" },
+  { id: "fortnight", label: "Quincena" },
+  { id: "month", label: "Mes" },
+];
+
+function isoWeekKey(dateStr) {
+  const [y, m, d] = dateStr.slice(0, 10).split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  const dayNum = (date.getUTCDay() + 6) % 7; // lunes = 0
+  date.setUTCDate(date.getUTCDate() - dayNum + 3); // jueves de esa semana
+  const firstThursday = new Date(Date.UTC(date.getUTCFullYear(), 0, 4));
+  const week = 1 + Math.round(((date - firstThursday) / 86400000 - 3 + ((firstThursday.getUTCDay() + 6) % 7)) / 7);
+  return `${date.getUTCFullYear()}-S${String(week).padStart(2, "0")}`;
+}
+
+// Clave ordenable para agrupar una fecha según el periodo.
+function periodKey(dateStr, period) {
+  const d = dateStr.slice(0, 10);
+  if (period === "day") return d;
+  if (period === "week") return isoWeekKey(d);
+  if (period === "fortnight") {
+    const day = parseInt(d.slice(8, 10), 10);
+    return d.slice(0, 7) + (day <= 15 ? "-Q1" : "-Q2");
+  }
+  return d.slice(0, 7); // mes
+}
+
 export default function FinanceApp() {
   const [tab, setTab] = useState("dashboard");
   const [entries, setEntries] = useState([]);
@@ -94,6 +124,7 @@ export default function FinanceApp() {
   const [currency, setCurrency] = useState("MXN");
   const [lastApplied, setLastApplied] = useState(null); // 'YYYY-MM' último mes en que se aplicaron fijos
   const [filter, setFilter] = useState({ q: "", type: "all", category: "all", from: "", to: "" });
+  const [period, setPeriod] = useState("month");
 
   const fmt = useMemo(() => makeFmt(currency), [currency]);
 
@@ -156,6 +187,17 @@ export default function FinanceApp() {
     }
     return Object.values(map).sort((a, b) => a.month.localeCompare(b.month));
   }, [entries]);
+
+  const periodData = useMemo(() => {
+    const map = {};
+    for (const e of entries) {
+      const key = periodKey(e.date, period);
+      if (!map[key]) map[key] = { period: key, income: 0, expense: 0 };
+      if (e.type === "income") map[key].income += e.amount;
+      else map[key].expense += e.amount;
+    }
+    return Object.values(map).sort((a, b) => a.period.localeCompare(b.period));
+  }, [entries, period]);
 
   const avgMonthlySave = useMemo(() => {
     if (monthly.length === 0) return 0;
@@ -476,7 +518,7 @@ export default function FinanceApp() {
       <div style={{ maxWidth: 920, margin: "0 auto", padding: "20px" }}>
         <ErrorBoundary key={tab}>
         {tab === "dashboard" && (
-          <Dashboard totals={totals} monthly={monthly} entries={entries} avgMonthlySave={avgMonthlySave}
+          <Dashboard totals={totals} periodData={periodData} period={period} setPeriod={setPeriod} entries={entries} avgMonthlySave={avgMonthlySave}
             fixedItems={fixedItems} fixedNet={fixedNet} wealth={wealth} netWorth={netWorth} hasAccounts={accounts.length > 0}
             budgetAlerts={budgetAlerts} needsApply={needsApply} applyFixedThisMonth={applyFixedThisMonth}
             curMonth={curMonth} goTo={setTab} startEdit={startEdit} />
@@ -536,8 +578,9 @@ function StatCard({ label, value, color, icon: Icon }) {
   );
 }
 
-function Dashboard({ totals, monthly, entries, avgMonthlySave, fixedItems, fixedNet, wealth, netWorth, hasAccounts, budgetAlerts, needsApply, applyFixedThisMonth, curMonth, goTo, startEdit }) {
+function Dashboard({ totals, periodData, period, setPeriod, entries, avgMonthlySave, fixedItems, fixedNet, wealth, netWorth, hasAccounts, budgetAlerts, needsApply, applyFixedThisMonth, curMonth, goTo, startEdit }) {
   const fmt = useFmt();
+  const periodLabel = (PERIODS.find(p => p.id === period) || PERIODS[3]).label.toLowerCase();
   return (
     <div>
       {needsApply && (
@@ -573,11 +616,25 @@ function Dashboard({ totals, monthly, entries, avgMonthlySave, fixedItems, fixed
         </div>
       )}
 
-      {monthly.length > 0 ? (
+      {periodData.length > 0 ? (
         <div style={{ background: "#161d29", border: "1px solid #29323f", borderRadius: 12, padding: 16, marginBottom: 18 }}>
-          <div className="sg" style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>Ingresos vs gastos por mes</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
+            <div className="sg" style={{ fontSize: 14, fontWeight: 700 }}>Ingresos vs gastos por {periodLabel}</div>
+            <div style={{ display: "flex", gap: 4, background: "#0c1118", border: "1px solid #29323f", borderRadius: 8, padding: 3 }}>
+              {PERIODS.map(p => (
+                <button key={p.id} onClick={() => setPeriod(p.id)}
+                  style={{
+                    background: period === p.id ? "#d4af37" : "transparent",
+                    color: period === p.id ? "#0c1118" : "#8a93a3",
+                    border: "none", borderRadius: 6, padding: "5px 12px", fontSize: 12, fontWeight: 700
+                  }}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <Suspense fallback={<ChartFallback height={220} />}>
-            <MonthlyChart data={monthly} />
+            <MonthlyChart data={periodData} />
           </Suspense>
         </div>
       ) : (
